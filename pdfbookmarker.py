@@ -53,7 +53,7 @@ def add_bookmarks(pdf_in_filename, bookmarks_tree, pdf_out_filename=None):
 
     def crawl_tree(tree, parent):
         for title, page_num, subtree in tree:
-            current = pdf_out.addBookmark(title, page_num, parent) # add parent bookmark
+            current = pdf_out.addBookmark(title, page_num, parent)  # add parent bookmark
             if subtree:
                 crawl_tree(subtree, current)
 
@@ -72,7 +72,7 @@ def add_bookmarks(pdf_in_filename, bookmarks_tree, pdf_out_filename=None):
     return pdf_out_filename
 
 
-def get_bookmarks_tree(bookmarks_filename):
+def get_bookmarks_tree(bookmarks_filename, offset):
     """Get bookmarks tree from TEXT-format file
 
     Bookmarks tree structure:
@@ -117,20 +117,19 @@ def get_bookmarks_tree(bookmarks_filename):
     # `value`: the children list of the node
     latest_nodes = {0: tree}
 
-    offset = 0
     prev_level = 0
     for line in codecs.open(bookmarks_filename, 'r', encoding='utf-8'):
+        cur_level = 1
+        for c in line:
+            if c == " ":
+                cur_level += 1
+            else:
+                break
+
         line = line.strip()
-        if line.startswith('//'):
-            try:
-                offset = int(line[2:])
-            except ValueError:
-                pass
-            continue
-        res = re.match(r'(\+*)\s*?"([^"]+)"\s*\|\s*(\d+)', line)
+        res = re.match(r'(\s*)(.*)\s(\d+)', line)
         if res:
-            pluses, title, page_num = res.groups()
-            cur_level = len(pluses)  # plus count stands for level
+            _, title, page_num = res.groups()
             cur_node = (title, int(page_num) - 1 + offset, [])
 
             if not (0 < cur_level <= prev_level + 1):
@@ -146,10 +145,10 @@ def get_bookmarks_tree(bookmarks_filename):
 
 
 # run as a script
-def run_script(pdf_in_filename, bookmarks_filename, pdf_out_filename=None):
+def run_script(pdf_in_filename, bookmarks_filename, pdf_out_filename=None, offset=0):
     sys.stderr.write('In processing, please wait...\n')
     try:
-        bookmarks_tree = get_bookmarks_tree(bookmarks_filename)
+        bookmarks_tree = get_bookmarks_tree(bookmarks_filename, offset)
         pdf_out_filename = add_bookmarks(pdf_in_filename, bookmarks_tree, pdf_out_filename)
     except Exception as exc:
         sys.stderr.write("error:\n%s\n" % str(exc))
@@ -157,26 +156,6 @@ def run_script(pdf_in_filename, bookmarks_filename, pdf_out_filename=None):
         sys.stderr.write("New PDF generated: %s\n" % pdf_out_filename)
 
 
-# documentation test
-def doc_test():
-    import doctest
-    doctest.testmod()
-
-
-# test and, or execute
-def main():
-    if len(sys.argv) not in (2, 3, 4) or sys.argv[1] in ('-h', '--help'):
-        sys.stderr.write(__doc__)
-        sys.exit(1)
-
-    if sys.argv[1] in ('-t', '--test'):
-        doc_test()
-    elif len(sys.argv) == 2:
-        name_parts = os.path.splitext(sys.argv[1])
-        run_script(sys.argv[1], name_parts[0] + '.txt', pdf_out_filename=None)
-    else:
-        run_script(*sys.argv[1:])
-
-
 if __name__ == '__main__':
-    main()
+    # offset: 绝对页码偏移量 - 相对页码偏移量
+    run_script("14629161.pdf", "temp.txt", "14629161-new.pdf", 12)
